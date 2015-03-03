@@ -1,4 +1,26 @@
 apply plugin: 'com.android.library'
+apply plugin: 'maven'
+
+group = 'com.sothree.slidinguppanel'
+version = '3.0.0'
+
+uploadArchives {
+    configuration = configurations.archives
+    repositories {
+        mavenDeployer {
+            // I chose to put my repo in the project's root
+            repository(url: uri("../../../localrepo"))
+            pom.project {
+                artifactId 'AndroidSlidingUpPanel'
+                name 'AndroidSlidingUpPanel'
+                packaging 'aar'
+            }
+        }
+    }
+}
+
+targetCompatibility = '1.6'
+sourceCompatibility = '1.6'
 
 buildscript {
   repositories {
@@ -35,4 +57,4 @@ android {
   }
 }
 
-apply from: '../maven_push.gradle'
+//apply from: '../maven_push.gradle'

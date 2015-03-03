@@ -16,9 +16,12 @@ import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.MotionEvent;
+import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.accessibility.AccessibilityEvent;
+import android.widget.AbsListView;
+import android.widget.ListView;
 
 import com.nineoldandroids.view.animation.AnimatorProxy;
 import com.sothree.slidinguppanel.library.R;
@@ -264,6 +267,16 @@ public class SlidingUpPanelLayout extends ViewGroup {
         }
     }
 
+    // Sliding layout with a ListView
+    View mScrollView;
+    int mScrollViewResId = -1;
+    boolean isChildHandlingTouch = false;
+    float mPrevMotionX;
+    float mPrevMotionY;
+    int mScrollState = 0;
+    AbsListView.OnScrollListener mScrollListener;
+
+
     public SlidingUpPanelLayout(Context context) {
         this(context, null);
     }
@@ -309,6 +322,8 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 mAnchorPoint = ta.getFloat(R.styleable.SlidingUpPanelLayout_umanoAnchorPoint, DEFAULT_ANCHOR_POINT);
 
                 mSlideState = PanelState.values()[ta.getInt(R.styleable.SlidingUpPanelLayout_umanoInitialState, DEFAULT_SLIDE_STATE.ordinal())];
+
+                mScrollViewResId = ta.getResourceId(R.styleable.SlidingUpPanelLayout_scrollView, -1);
             }
 
             ta.recycle();
@@ -353,6 +368,25 @@ public class SlidingUpPanelLayout extends ViewGroup {
         if (mDragViewResId != -1) {
             setDragView(findViewById(mDragViewResId));
         }
+        if (mScrollViewResId != -1) {
+            mScrollView = findViewById(mScrollViewResId);
+        }
+    }
+
+    private boolean isScrollViewUnder(int x, int y) {
+        if (mScrollView == null)
+            return false;
+
+        int[] viewLocation = new int[2];
+        mScrollView.getLocationOnScreen(viewLocation);
+        int[] parentLocation = new int[2];
+        this.getLocationOnScreen(parentLocation);
+        int screenX = parentLocation[0] + x;
+        int screenY = parentLocation[1] + y;
+        return screenX >= viewLocation[0] &&
+                screenX < viewLocation[0] + mScrollView.getWidth() &&
+                screenY >= viewLocation[1] &&
+                screenY < viewLocation[1] + mScrollView.getHeight();
     }
 
     public void setGravity(int gravity) {
@@ -508,6 +542,27 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 }
             });;
         }
+    }
+
+    public void setScrollView(View scrollView, final AbsListView.OnScrollListener listener) {
+        mScrollView = scrollView;
+        mScrollListener = listener;
+        ((ListView) scrollView).setOnScrollListener(new AbsListView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(AbsListView view, int scrollState) {
+                mScrollState = scrollState;
+                if(listener != null) {
+                    listener.onScrollStateChanged(view, scrollState);
+                }
+            }
+
+            @Override
+            public void onScroll(AbsListView view, int firstVisibleItem, int visibleItemCount, int totalItemCount) {
+                if(listener != null) {
+                    listener.onScroll(view, firstVisibleItem, visibleItemCount, totalItemCount);
+                }
+            }
+        });
     }
 
     /**
@@ -820,60 +875,161 @@ public class SlidingUpPanelLayout extends ViewGroup {
     }
 
     @Override
-    public boolean onInterceptTouchEvent(MotionEvent ev) {
-        final int action = MotionEventCompat.getActionMasked(ev);
-
-
-        if (!isEnabled() || !isTouchEnabled() || (mIsUnableToDrag && action != MotionEvent.ACTION_DOWN)) {
-            mDragHelper.cancel();
-            return super.onInterceptTouchEvent(ev);
-        }
-
-        if (action == MotionEvent.ACTION_CANCEL || action == MotionEvent.ACTION_UP) {
-            mDragHelper.cancel();
-            return false;
-        }
-
-        final float x = ev.getX();
-        final float y = ev.getY();
-
-        switch (action) {
-            case MotionEvent.ACTION_DOWN: {
-                mIsUnableToDrag = false;
-                mInitialMotionX = x;
-                mInitialMotionY = y;
-                break;
-            }
-
-            case MotionEvent.ACTION_MOVE: {
-                final float adx = Math.abs(x - mInitialMotionX);
-                final float ady = Math.abs(y - mInitialMotionY);
-                final int dragSlop = mDragHelper.getTouchSlop();
-
-                // Handle any horizontal scrolling on the drag view.
-                if (mIsUsingDragViewTouchEvents && adx > dragSlop && ady < dragSlop) {
-                    return super.onInterceptTouchEvent(ev);
-                }
-
-                if ((ady > dragSlop && adx > ady) || !isDragViewUnder((int)mInitialMotionX, (int)mInitialMotionY)) {
-                    mDragHelper.cancel();
-                    mIsUnableToDrag = true;
-                    return false;
-                }
-                break;
-            }
-        }
-
-        return mDragHelper.shouldInterceptTouchEvent(ev);
-    }
-
-    @Override
     public boolean onTouchEvent(MotionEvent ev) {
         if (!isEnabled() || !isTouchEnabled()) {
             return super.onTouchEvent(ev);
         }
-        mDragHelper.processTouchEvent(ev);
-        return true;
+        try {
+            mDragHelper.processTouchEvent(ev);
+
+            final int action = ev.getAction();
+            boolean wantTouchEvents = false;
+
+            switch (action & MotionEventCompat.ACTION_MASK) {
+                case MotionEvent.ACTION_UP: {
+                    final float x = ev.getX();
+                    final float y = ev.getY();
+                    final float dx = x - mInitialMotionX;
+                    final float dy = y - mInitialMotionY;
+                    final int slop = mDragHelper.getTouchSlop();
+                    View dragView = mDragView != null ? mDragView : mSlideableView;
+
+                    if (dx * dx + dy * dy < slop * slop &&
+                            isDragViewUnder((int) x, (int) y) &&
+                            !isScrollViewUnder((int) x, (int) y)) {
+                        dragView.playSoundEffect(SoundEffectConstants.CLICK);
+                        if (getPanelState() != PanelState.EXPANDED && getPanelState() != PanelState.ANCHORED) {
+                            //expandPane(mAnchorPoint);
+                            setPanelState(PanelState.ANCHORED);
+                        } else {
+                            //collapsePane();
+                            setPanelState(PanelState.COLLAPSED);
+                        }
+                        break;
+                    }
+                    break;
+                }
+            }
+
+            return wantTouchEvents;
+        } catch (Exception ex){
+            ex.printStackTrace();
+            return false;
+        }
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent ev) {
+        // Identify if we want to handle the touch event in this class.
+        // We do this here because we want to be able to handle the case
+        // where a child begins handling a touch event, but then the
+        // parent takes over. If we rely on onInterceptTouchEvent, we
+        // lose control of the touch as soon as the child handles the event.
+        if (mScrollView == null)
+            return super.dispatchTouchEvent(ev);
+
+        final int action = MotionEventCompat.getActionMasked(ev);
+
+        final float x = ev.getX();
+        final float y = ev.getY();
+
+        if (action == MotionEvent.ACTION_DOWN) {
+            mInitialMotionX = mPrevMotionX = x;
+            mInitialMotionY = mPrevMotionY = y;
+
+            if(mScrollState == AbsListView.OnScrollListener.SCROLL_STATE_IDLE) {
+                //isChildHandlingTouch = true;
+                return super.dispatchTouchEvent(ev);
+            }
+            // Go ahead and have the drag helper attempt to intercept
+            // the touch event. If it won't be dragging, we'll cancel it later.
+            mDragHelper.shouldInterceptTouchEvent(ev);
+
+            isChildHandlingTouch = false;
+        } else if (action == MotionEvent.ACTION_MOVE) {
+            float dx = x - mPrevMotionX;
+            float dy = y - mPrevMotionY;
+            mPrevMotionX = x;
+            mPrevMotionY = y;
+
+            // If the scroll view isn't under the touch, pass the
+            // event along to the dragView.
+            if (!isScrollViewUnder((int) x, (int) y))
+                //return this.onTouchEvent(ev);
+                return this.onTouchEvent(ev) || super.dispatchTouchEvent(ev);
+
+            // Which direction (up or down) is the drag moving?
+            if (dy > 0) { // DOWN
+                // Is the child less than fully scrolled?
+                // Then let the child handle it.
+                //if (mScrollView.getScrollY() > 0) {
+                if (((ListView)mScrollView).getFirstVisiblePosition() > 0 || getFirstChildTopOffset((ListView) mScrollView) > 0){
+                    isChildHandlingTouch = true;
+                    return super.dispatchTouchEvent(ev);
+                }
+
+                // Was the child handling the touch previously?
+                // Then we need to rejigger things so that the
+                // drag panel gets a proper down event.
+                if (isChildHandlingTouch) {
+                    // Send an 'UP' event to the child.
+                    MotionEvent up = MotionEvent.obtain(ev);
+                    up.setAction(MotionEvent.ACTION_UP);
+                    super.dispatchTouchEvent(up);
+                    up.recycle();
+
+                    // Send a 'DOWN' event to the panel. (We'll cheat
+                    // and hijack this one)
+                    ev.setAction(MotionEvent.ACTION_DOWN);
+                }
+
+                isChildHandlingTouch = false;
+                return this.onTouchEvent(ev);
+            } else if (dy < 0) { // UP
+                // Is the panel less than fully expanded?
+                // Then we'll handle the drag here.
+                //if (mSlideOffset > 0.0f) {
+                if (mSlideOffset < 1.0f) {
+                    isChildHandlingTouch = false;
+                    return this.onTouchEvent(ev);
+                    //return this.onTouchEvent(ev) || super.dispatchTouchEvent(ev);
+                }
+
+                // Was the panel handling the touch previously?
+                // Then we need to rejigger things so that the
+                // child gets a proper down event.
+                if (!isChildHandlingTouch) {
+                    mDragHelper.cancel();
+                    ev.setAction(MotionEvent.ACTION_DOWN);
+                }
+
+                isChildHandlingTouch = true;
+                return super.dispatchTouchEvent(ev);
+            }
+        } else if ((action == MotionEvent.ACTION_CANCEL) ||
+                (action == MotionEvent.ACTION_UP)) {
+            if (!isChildHandlingTouch) {
+                final float dx = x - mInitialMotionX;
+                final float dy = y - mInitialMotionY;
+                final int slop = mDragHelper.getTouchSlop();
+
+                if ((mIsUsingDragViewTouchEvents) &&
+                        (dx * dx + dy * dy < slop * slop))
+                    return super.dispatchTouchEvent(ev);
+
+                //return this.onTouchEvent(ev);
+                return this.onTouchEvent(ev) || super.dispatchTouchEvent(ev);
+            }
+        }
+
+        // In all other cases, just let the default behavior take over.
+        return super.dispatchTouchEvent(ev);
+    }
+
+    public int getFirstChildTopOffset(ListView list){
+        View v = list.getChildAt(0);
+        int top = (v == null) ? 0 : (list.getPaddingTop() - v.getTop());
+        return top;
     }
 
     private boolean isDragViewUnder(int x, int y) {
