@@ -161,7 +161,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
         HIDDEN,
         DRAGGING
     }
-    private PanelState mSlideState = PanelState.COLLAPSED;
+    private PanelState mSlideState = DEFAULT_SLIDE_STATE;
 
     /**
      * How far the panel is offset from its expanded position.
@@ -426,7 +426,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
     }
 
     public boolean isTouchEnabled() {
-        return mIsTouchEnabled && mSlideableView != null;
+        return mIsTouchEnabled && mSlideableView != null && mSlideState != PanelState.HIDDEN;
     }
 
     /**
@@ -1087,7 +1087,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
             throw new IllegalArgumentException("Panel state cannot be null or DRAGGING.");
         }
         if (!isEnabled()
-                || mSlideableView == null
+                || (!mFirstLayout && mSlideableView == null)
                 || state == mSlideState
                 || mSlideState == PanelState.DRAGGING) return;
 
