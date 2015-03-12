@@ -141,6 +141,8 @@ public class SlidingUpPanelLayout extends ViewGroup {
      */
     private int mDragViewResId = -1;
 
+    private View mNoDragView;
+    private int mNoDragViewResId = -1;
     /**
      * The child view that can slide, if any.
      */
@@ -246,7 +248,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
     }
 
     /**
-     * No-op stubs for {@link PanelSlideListener}. If you only want to implement a subset
+     * No-op stubs for {@link com.sothree.slidinguppanel.SlidingUpPanelLayout.PanelSlideListener}. If you only want to implement a subset
      * of the listener methods you can extend this instead of implement the full interface.
      */
     public static class SimplePanelSlideListener implements PanelSlideListener {
@@ -315,6 +317,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 mCoveredFadeColor = ta.getColor(R.styleable.SlidingUpPanelLayout_umanoFadeColor, DEFAULT_FADE_COLOR);
 
                 mDragViewResId = ta.getResourceId(R.styleable.SlidingUpPanelLayout_umanoDragView, -1);
+                mNoDragViewResId = ta.getResourceId(R.styleable.SlidingUpPanelLayout_umanoNoDragView, -1);
 
                 mOverlayContent = ta.getBoolean(R.styleable.SlidingUpPanelLayout_umanoOverlay, DEFAULT_OVERLAY_FLAG);
                 mClipPanel = ta.getBoolean(R.styleable.SlidingUpPanelLayout_umanoClipPanel, DEFAULT_CLIP_PANEL_FLAG);
@@ -367,6 +370,9 @@ public class SlidingUpPanelLayout extends ViewGroup {
         super.onFinishInflate();
         if (mDragViewResId != -1) {
             setDragView(findViewById(mDragViewResId));
+        }
+        if (mNoDragViewResId != -1) {
+            setNoDragView(findViewById(mNoDragViewResId));
         }
         if (mScrollViewResId != -1) {
             mScrollView = findViewById(mScrollViewResId);
@@ -544,6 +550,13 @@ public class SlidingUpPanelLayout extends ViewGroup {
         }
     }
 
+    public void setNoDragView(View noDragView) {
+        if (mNoDragView != null) {
+            mNoDragView.setOnClickListener(null);
+        }
+        mNoDragView = noDragView;
+    }
+
     public void setScrollView(View scrollView, final AbsListView.OnScrollListener listener) {
         mScrollView = scrollView;
         mScrollListener = listener;
@@ -573,6 +586,11 @@ public class SlidingUpPanelLayout extends ViewGroup {
     public void setDragView(int dragViewResId) {
         mDragViewResId = dragViewResId;
         setDragView(findViewById(dragViewResId));
+    }
+
+    public void setNoDragView(int noDragViewResId) {
+        mNoDragViewResId = noDragViewResId;
+        setDragView(findViewById(noDragViewResId));
     }
 
     /**
@@ -746,6 +764,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
             setDragView(mSlideableView);
         }
 
+
         // If the sliding panel is not visible, then put the whole view in the hidden state
         if (mSlideableView.getVisibility() != VISIBLE) {
             mSlideState = PanelState.HIDDEN;
@@ -894,7 +913,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
                     final int slop = mDragHelper.getTouchSlop();
                     View dragView = mDragView != null ? mDragView : mSlideableView;
 
-                    if (dx * dx + dy * dy < slop * slop &&
+                    if (dx * dx + dy * dy < slop * slop && !isNoDragViewUnder((int) x, (int) y) &&
                             isDragViewUnder((int) x, (int) y) &&
                             !isScrollViewUnder((int) x, (int) y)) {
                         dragView.playSoundEffect(SoundEffectConstants.CLICK);
@@ -914,7 +933,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
             return wantTouchEvents;
         } catch (Exception ex){
             ex.printStackTrace();
-            return false;
+            return super.onTouchEvent(ev);
         }
     }
 
@@ -1033,6 +1052,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
     }
 
     private boolean isDragViewUnder(int x, int y) {
+
         if (mDragView == null) return false;
         int[] viewLocation = new int[2];
         mDragView.getLocationOnScreen(viewLocation);
@@ -1042,6 +1062,19 @@ public class SlidingUpPanelLayout extends ViewGroup {
         int screenY = parentLocation[1] + y;
         return screenX >= viewLocation[0] && screenX < viewLocation[0] + mDragView.getWidth() &&
                 screenY >= viewLocation[1] && screenY < viewLocation[1] + mDragView.getHeight();
+    }
+
+    private boolean isNoDragViewUnder(int x, int y) {
+
+        if (mNoDragView == null) return false;
+        int[] viewLocation = new int[2];
+        mNoDragView.getLocationOnScreen(viewLocation);
+        int[] parentLocation = new int[2];
+        this.getLocationOnScreen(parentLocation);
+        int screenX = parentLocation[0] + x;
+        int screenY = parentLocation[1] + y;
+        return screenX >= viewLocation[0] && screenX < viewLocation[0] + mNoDragView.getWidth() &&
+                screenY >= viewLocation[1] && screenY < viewLocation[1] + mNoDragView.getHeight();
     }
 
     /*
@@ -1410,7 +1443,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
         }
     }
 
-    public static class LayoutParams extends ViewGroup.MarginLayoutParams {
+    public static class LayoutParams extends MarginLayoutParams {
         private static final int[] ATTRS = new int[] {
             android.R.attr.layout_weight
         };
@@ -1423,7 +1456,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
             super(width, height);
         }
 
-        public LayoutParams(android.view.ViewGroup.LayoutParams source) {
+        public LayoutParams(ViewGroup.LayoutParams source) {
             super(source);
         }
 
@@ -1466,8 +1499,8 @@ public class SlidingUpPanelLayout extends ViewGroup {
             out.writeString(mSlideState.toString());
         }
 
-        public static final Parcelable.Creator<SavedState> CREATOR =
-                new Parcelable.Creator<SavedState>() {
+        public static final Creator<SavedState> CREATOR =
+                new Creator<SavedState>() {
             @Override
             public SavedState createFromParcel(Parcel in) {
                 return new SavedState(in);
