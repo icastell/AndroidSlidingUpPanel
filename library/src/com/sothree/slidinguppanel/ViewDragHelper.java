@@ -1135,19 +1135,21 @@ public class ViewDragHelper {
                                 ;
                         final float x = MotionEventCompat.getX(ev, i);
                         final float y = MotionEventCompat.getY(ev, i);
-                        final float dx = x - mInitialMotionX[pointerId];
-                        final float dy = y - mInitialMotionY[pointerId];
+                        if(mInitialMotionX != null && mInitialMotionY != null) {
+                            final float dx = x - mInitialMotionX[pointerId];
+                            final float dy = y - mInitialMotionY[pointerId];
 
-                        reportNewEdgeDrags(dx, dy, pointerId);
-                        if (mDragState == STATE_DRAGGING) {
-                            // Callback might have started an edge drag.
-                            break;
-                        }
+                            reportNewEdgeDrags(dx, dy, pointerId);
+                            if (mDragState == STATE_DRAGGING) {
+                                // Callback might have started an edge drag.
+                                break;
+                            }
 
-                        final View toCapture = findTopChildUnder((int) x, (int) y);
-                        if (checkTouchSlop(toCapture, dx, dy) &&
-                                tryCaptureViewForDrag(toCapture, pointerId)) {
-                            break;
+                            final View toCapture = findTopChildUnder((int) x, (int) y);
+                            if (checkTouchSlop(toCapture, dx, dy) &&
+                                    tryCaptureViewForDrag(toCapture, pointerId)) {
+                                break;
+                            }
                         }
                     }
                     saveLastMotion(ev);
