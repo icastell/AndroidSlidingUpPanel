@@ -14,6 +14,7 @@ import android.os.Parcelable;
 import android.support.v4.view.MotionEventCompat;
 import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.SoundEffectConstants;
@@ -974,9 +975,9 @@ public class SlidingUpPanelLayout extends ViewGroup {
             mInitialMotionX = mPrevMotionX = x;
             mInitialMotionY = mPrevMotionY = y;
 
-            if (mScrollState == AbsListView.OnScrollListener.SCROLL_STATE_IDLE) {
+            if (mScrollState == AbsListView.OnScrollListener.SCROLL_STATE_FLING) {
                 //isChildHandlingTouch = true;
-                return super.dispatchTouchEvent(ev);
+                //return super.dispatchTouchEvent(ev);
             }
             // Go ahead and have the drag helper attempt to intercept
             // the touch event. If it won't be dragging, we'll cancel it later.
@@ -989,18 +990,33 @@ public class SlidingUpPanelLayout extends ViewGroup {
             mPrevMotionX = x;
             mPrevMotionY = y;
 
+            if(Math.abs(dx) > Math.abs(dy)) {
+                // Horizontal movement
+                mDragHelper.cancel();
+                isChildHandlingTouch = true;
+                return this.dispatchTouchEvent(ev);
+            }
+
             // If the scroll view isn't under the touch, pass the
             // event along to the dragView.
             if (!isChildHandlingTouch && !isScrollViewUnder((int) x, (int) y))
                 //return this.onTouchEvent(ev);
                 return this.onTouchEvent(ev) || super.dispatchTouchEvent(ev);
 
+            if(mScrollState == AbsListView.OnScrollListener.SCROLL_STATE_FLING) {
+                // El scroll esta en movimiento ignoramos el event
+                mDragHelper.cancel();
+                isChildHandlingTouch = true;
+                return this.dispatchTouchEvent(ev);
+            }
+
             // Which direction (up or down) is the drag moving?
             if (dy > 0) { // DOWN
                 // Is the child less than fully scrolled?
                 // Then let the child handle it.
                 //if (mScrollView.getScrollY() > 0) {
-                if (((ListView) mScrollView).getFirstVisiblePosition() > 0 || getFirstChildTopOffset((ListView) mScrollView) > 0) {
+                if (isScrollViewUnder((int) x, (int) y) && (((ListView) mScrollView).getFirstVisiblePosition() > 0 || getFirstChildTopOffset((ListView) mScrollView) > 0)) {
+                    mDragHelper.cancel();
                     isChildHandlingTouch = true;
                     try {
                         return super.dispatchTouchEvent(ev);
@@ -1016,7 +1032,8 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 if (isChildHandlingTouch) {
                     // Send an 'UP' event to the child.
                     MotionEvent up = MotionEvent.obtain(ev);
-                    up.setAction(MotionEvent.ACTION_UP);
+                    //up.setAction(MotionEvent.ACTION_CANCEL);*/
+                    Log.d("Sliding", "CANCEL\n\n");
                     super.dispatchTouchEvent(up);
                     up.recycle();
 
@@ -1026,7 +1043,12 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 }
 
                 isChildHandlingTouch = false;
-                return this.onTouchEvent(ev);
+                try {
+                    return this.onTouchEvent(ev);
+                } catch (Exception e) {
+                    mDragHelper.cancel();
+                    return false;
+                }
             } else if (dy < 0) { // UP
                 // Is the panel less than fully expanded?
                 // Then we'll handle the drag here.
@@ -1042,7 +1064,10 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 // child gets a proper down event.
                 if (!isChildHandlingTouch) {
                     mDragHelper.cancel();
-                    ev.setAction(MotionEvent.ACTION_DOWN);
+                    if(mScrollState != AbsListView.OnScrollListener.SCROLL_STATE_FLING) {
+                        // Si la lista no esta en movimiento le pasamos un down al hijo
+                        //ev.setAction(MotionEvent.ACTION_DOWN);
+                    }
                 }
 
                 isChildHandlingTouch = true;
