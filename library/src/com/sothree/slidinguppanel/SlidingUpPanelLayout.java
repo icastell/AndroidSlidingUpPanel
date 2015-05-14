@@ -994,7 +994,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 // Horizontal movement
                 mDragHelper.cancel();
                 isChildHandlingTouch = true;
-                return this.dispatchTouchEvent(ev);
+                return super.dispatchTouchEvent(ev);
             }
 
             // If the scroll view isn't under the touch, pass the
@@ -1007,7 +1007,7 @@ public class SlidingUpPanelLayout extends ViewGroup {
                 // El scroll esta en movimiento ignoramos el event
                 mDragHelper.cancel();
                 isChildHandlingTouch = true;
-                return this.dispatchTouchEvent(ev);
+                return super.dispatchTouchEvent(ev);
             }
 
             // Which direction (up or down) is the drag moving?
