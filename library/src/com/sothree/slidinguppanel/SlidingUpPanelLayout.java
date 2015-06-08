@@ -1001,7 +1001,12 @@ public class SlidingUpPanelLayout extends ViewGroup {
             // event along to the dragView.
             if (!isChildHandlingTouch && !isScrollViewUnder((int) x, (int) y))
                 //return this.onTouchEvent(ev);
+            try {
                 return this.onTouchEvent(ev) || super.dispatchTouchEvent(ev);
+            } catch (Exception e) {
+                e.printStackTrace();
+                return false;
+            }
 
             if(mScrollState == AbsListView.OnScrollListener.SCROLL_STATE_FLING) {
                 // El scroll esta en movimiento ignoramos el event
